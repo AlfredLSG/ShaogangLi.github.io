@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>个人学术主页</title>
+  <!-- 引入 marked.js 用于解析 Markdown -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      margin-bottom: 0.5rem;
+    }
+
+    p {
+      margin-bottom: 1rem;
+    }
+
+    .publication-item {
+      margin-bottom: 2rem;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 1rem;
+    }
+
+    .publication-item a {
+      color: #007bff;
+      text-decoration: none;
+    }
+
+    .publication-item a:hover {
+      text-decoration: underline;
+    }
+
+    #cv-container {
+      white-space: pre-line;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>个人学术主页</h1>
+  <div id="cv-container">
+    <!-- CV 内容会通过 JavaScript 从 CV.md 读取并解析为 HTML 渲染 -->
+  </div>
+
+  <h2>Publications</h2>
+  <p>You can also find my articles on <a href="https://scholar.google.com" target="_blank">my Google Scholar profile</a>.</p>
+  <h3>Journal Articles</h3>
+  <div id="publications-container">
+    <!-- 文章列表会通过 JavaScript 从 publication.tsv 读取渲染 -->
+  </div>
+
+  <script>
+    // 读取并渲染 CV.md 内容，借助 marked.js 解析 Markdown
+    fetch('CV.md')
+      .then(response => response.text())
+      .then(cvMarkdown => {
+        const cvContainer = document.getElementById('cv-container');
+        // 将 Markdown 转为 HTML 并插入页面
+        cvContainer.innerHTML = marked.parse(cvMarkdown);
+      })
+      .catch(error => {
+        console.error('读取 CV.md 失败:', error);
+        document.getElementById('cv-container').textContent = '读取 CV 内容失败，请检查文件是否存在或网络连接';
+      });
+
+    // 读取 publication.tsv 并渲染文章列表
+    fetch('publication.tsv')
+      .then(response => response.text())
+      .then(data => {
+        const lines = data.split('\n');
+        const headers = lines[0].split('\t').map(header => header.trim());
+        const publicationsContainer = document.getElementById('publications-container');
+
+        for (let i = 1; i < lines.length; i++) {
+          const rawParts = lines[i].split('\t');
+          // 处理可能存在的制表符分割问题，确保和表头数量匹配
+          const parts = [];
+          let currentPart = '';
+          let quoteMode = false;
+          for (const char of rawParts.join('\t')) { // 先还原成带制表符的原始字符串再处理
+            if (char === '"') {
+              quoteMode = !quoteMode;
+            } else if (char === '\t' && !quoteMode) {
+              parts.push(currentPart.trim());
+              currentPart = '';
+            } else {
+              currentPart += char;
+            }
+          }
+          parts.push(currentPart.trim()); // 处理最后一个字段
+
+          if (parts.length !== headers.length) {
+            console.warn(`第 ${i + 1} 行数据格式异常，跳过：`, lines[i]);
+            continue;
+          }
+
+          const pubObj = {};
+          headers.forEach((header, idx) => {
+            pubObj[header] = parts[idx];
+          });
+
+          const pubDiv = document.createElement('div');
+          pubDiv.className = 'publication-item';
+          pubDiv.innerHTML = `
+            <h4><a href="${pubObj.download_link ? pubObj.download_link : '#'}" target="_blank">${pubObj.title}</a></h4>
+            <p>Published in <em>${pubObj.journal}</em>, ${pubObj.published_info}</p>
+            <p>${pubObj.description} ${pubObj.author_note}</p>
+            ${pubObj.download_link ? `<a href="${pubObj.download_link}" target="_blank">${pubObj.download_link}</a>` : ''}
+          `;
+          publicationsContainer.appendChild(pubDiv);
+        }
+      })
+      .catch(error => {
+        console.error('读取 publication.tsv 失败:', error);
+        document.getElementById('publications-container').textContent = '读取论文列表失败，请检查文件是否存在或网络连接';
+      });
+  </script>
+</body>
+
+</html>
